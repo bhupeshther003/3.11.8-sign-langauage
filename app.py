@@ -101,12 +101,6 @@
 #     app.run(debug=True)
 
 
-
-
-
-
-
-
 from flask import Flask, render_template, Response, request, jsonify
 import cv2
 import numpy as np
@@ -160,9 +154,14 @@ def gen_frames():
     global cap, current_word, start_time, sentence, last_sentence, running
     
     if cap is None or not cap.isOpened():
-        cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
-            raise RuntimeError("Cannot open camera")
+        for index in range(3):  # Try different indices
+            cap = cv2.VideoCapture(index)
+            if cap.isOpened():
+                print(f"Camera started with index {index}")
+                break
+            cap.release()
+        else:
+            raise RuntimeError("Cannot open camera with any index")
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -208,10 +207,7 @@ def index():
 
 @app.route('/video_feed')
 def video_feed():
-    try:
-        return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-    except RuntimeError as e:
-        return jsonify({'error': str(e)}), 500
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/current_prediction')
 def current_prediction():
@@ -221,33 +217,35 @@ def current_prediction():
 @app.route('/start_camera', methods=['POST'])
 def start_camera():
     global cap, running
-    try:
-        if cap is None or not cap.isOpened():
-            cap = cv2.VideoCapture(0)  # Try different indices if needed
+    if cap is None or not cap.isOpened():
+        for index in range(3):  # Try different indices
+            print(f"Trying camera index {index}")
+            cap = cv2.VideoCapture(index)
             if cap.isOpened():
                 running = True
-                return jsonify({'message': 'Camera started'})
-            else:
-                return jsonify({'message': 'Cannot open camera'}), 500
-        return jsonify({'message': 'Camera already running'})
-    except Exception as e:
-        return jsonify({'message': f'Error starting camera: {str(e)}'}), 500
+                return jsonify({'message': f'Camera started with index {index}'})
+            cap.release()  # Release if the camera was not opened
+
+        return jsonify({'message': 'Cannot open camera with any index'}), 500
+    return jsonify({'message': 'Camera already running'})
 
 @app.route('/stop_camera', methods=['POST'])
 def stop_camera():
     global cap, running
-    try:
-        if cap and cap.isOpened():
-            cap.release()
-            cap = None
-            running = False
-            return jsonify({'message': 'Camera stopped'})
-        return jsonify({'message': 'Camera is not running'})
-    except Exception as e:
-        return jsonify({'message': f'Error stopping camera: {str(e)}'}), 500
+    if cap and cap.isOpened():
+        cap.release()
+        cap = None
+        running = False
+        return jsonify({'message': 'Camera stopped'})
+    return jsonify({'message': 'Camera is not running'})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=10000)  # Make sure to use the appropriate host and port for deployment
+    app.run(debug=True)
+
+
+
+
+
 
 
 
