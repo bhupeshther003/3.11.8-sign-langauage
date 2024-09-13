@@ -107,7 +107,6 @@
 
 
 
-
 from flask import Flask, render_template, Response, request, jsonify
 import cv2
 import numpy as np
@@ -209,7 +208,10 @@ def index():
 
 @app.route('/video_feed')
 def video_feed():
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    try:
+        return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    except RuntimeError as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/current_prediction')
 def current_prediction():
@@ -219,28 +221,33 @@ def current_prediction():
 @app.route('/start_camera', methods=['POST'])
 def start_camera():
     global cap, running
-    if cap is None or not cap.isOpened():
-        cap = cv2.VideoCapture(0)
-        running = True
-        if cap.isOpened():
-            return jsonify({'message': 'Camera started'})
-        else:
-            return jsonify({'message': 'Cannot open camera'}), 500
-    return jsonify({'message': 'Camera already running'})
+    try:
+        if cap is None or not cap.isOpened():
+            cap = cv2.VideoCapture(0)  # Try different indices if needed
+            if cap.isOpened():
+                running = True
+                return jsonify({'message': 'Camera started'})
+            else:
+                return jsonify({'message': 'Cannot open camera'}), 500
+        return jsonify({'message': 'Camera already running'})
+    except Exception as e:
+        return jsonify({'message': f'Error starting camera: {str(e)}'}), 500
 
 @app.route('/stop_camera', methods=['POST'])
 def stop_camera():
     global cap, running
-    if cap and cap.isOpened():
-        cap.release()
-        cap = None
-        running = False
-        return jsonify({'message': 'Camera stopped'})
-    return jsonify({'message': 'Camera is not running'})
+    try:
+        if cap and cap.isOpened():
+            cap.release()
+            cap = None
+            running = False
+            return jsonify({'message': 'Camera stopped'})
+        return jsonify({'message': 'Camera is not running'})
+    except Exception as e:
+        return jsonify({'message': f'Error stopping camera: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
-
+    app.run(debug=True, host='0.0.0.0', port=10000)  # Make sure to use the appropriate host and port for deployment
 
 
 
